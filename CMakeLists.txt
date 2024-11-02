@@ -47,6 +47,8 @@ pico_enable_stdio_usb(Spider 1)
 # Add the standard library to the build
 target_link_libraries(Spider
         hardware_pwm
+        hardware_uart
+        pico_multicore
         pico_stdlib)
 
 # Add the standard include files to the build

@@ -10,16 +10,25 @@
 
 #include "pico/stdlib.h"
 
+struct vector
+{
+	float x;
+	float y;
+	float z;
+};
+
 class Leg
 {
 public:
 	Leg();
 	virtual ~Leg();
 
-	void loop();
-	bool inverse_kinematics(int leg);
+	void caliberate_middle();
+	bool inverse_kinematics(int leg, float phase_shift,float speed_multiple, float turning);
+	void movement_loop();
+	// int *read();
+	int normalize(int value, int type);
 
-	void setter_coor(float x_1, float y_1, float z_1, float x_2, float y_2, float z_2);
 };
 
 #endif /* SERVO_SRC_SERVO_H_ */

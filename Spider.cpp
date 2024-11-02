@@ -7,59 +7,27 @@
 
 #include <stdio.h>
 #include "Leg.h"
-// #include <iostream>
+#include <iostream>
 
 #define DELAY 1000 // in microseconds
-uint64_t current_time = to_us_since_boot(get_absolute_time());
-uint64_t prev_time = to_us_since_boot(get_absolute_time());
-uint64_t prev_step_time = 0;
-int flag = 0;
-bool pass = true;
-// using std::cout;
-// using std::endl;
+using std::cout;
+using std::endl;
+
+void test()
+{
+    cout << "interupt" << endl;
+}
 
 int main()
 {
 
     stdio_init_all();
-
     Leg leg;
+    leg.movement_loop();
+    // leg.read();
 
-    while (1)
-    {
+    // leg.loop();
 
-        current_time = to_us_since_boot(get_absolute_time());
-        if (current_time - prev_time >= 5000)
-        { // start 5ms timed loop
-            prev_time = current_time;
-            // cout << flag << " outside top" << endl;
-            if (flag == 0 && pass)
-            {
-                // cout << flag << " inside top" << endl;
-                leg.setter_coor(40.0, 0.0, 0.0, 0.0, 0.0, 40.0);
-                flag = 1;
-                pass = false;
-            }
-            else if (flag == 1 && pass)
-            {
-
-                // cout << flag << " inside mid" << endl;
-                leg.setter_coor(0.0, 0.0, 40.0, -40.0, 0.0, 0.0);
-                flag = 2;
-                pass = false;
-            }
-            else if (flag == 2 && pass)
-            {
-
-                // cout << flag << " inside mid" << endl;
-                leg.setter_coor(-40.0, 0.0, 0.0, 40.0, 0.0, 0.0);
-                flag = 0;
-                pass = false;
-            }
-
-            pass = leg.inverse_kinematics(0);
-        }
-    }
     // while (1)
     // {
 
