@@ -28,32 +28,9 @@ const float z_default = -50, z_up = -30, z_boot = z_absolute;
 const float x_default = 62, x_offset = 0;
 const float y_start = 0, y_step = 40;
 const float y_default = x_default;
-/* variables for movement ----------------------------------------------------*/
-volatile float site_now[4][3];	  // real-time coordinates of the end of each leg
-volatile float site_expect[4][3]; // expected coordinates of the end of each leg
-float temp_speed[4][3];			  // each axis' speed, needs to be recalculated before each movement
-float move_speed;				  // movement speed
-const float spot_turn_speed = 4;
-const float leg_move_speed = 8;
-const float body_move_speed = 3;
-const float stand_seat_speed = 1;
-volatile int rest_counter; //+1/0.02s, for automatic rest
-// functions' parameter
-const float KEEP = 255;
+
 // define PI for calculation
 const float pi = 3.1415926;
-/* Constants for turn --------------------------------------------------------*/
-// temp length
-const float temp_a = sqrt(pow(2 * x_default + length_side, 2) + pow(y_step, 2));
-const float temp_b = 2 * (y_start + y_step) + length_side;
-const float temp_c = sqrt(pow(2 * x_default + length_side, 2) + pow(2 * y_start + y_step + length_side, 2));
-const float temp_alpha = acos((pow(temp_a, 2) + pow(temp_b, 2) - pow(temp_c, 2)) / 2 / temp_a / temp_b);
-// site for turn
-const float turn_x1 = (temp_a - length_side) / 2;
-const float turn_y1 = y_start + y_step / 2;
-const float turn_x0 = turn_x1 - temp_b * cos(temp_alpha);
-const float turn_y0 = temp_b * sin(temp_alpha) - turn_y1 - length_side;
-/* ---------------------------------------------------------------------------*/
 
 float current_t = 0;
 uint64_t current_time = to_us_since_boot(get_absolute_time());
@@ -188,10 +165,10 @@ void Leg::movement_loop()
 		{ // start 5ms timed loop
 			prev_time = current_time;
 
-			inverse_kinematics(0, 0, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
-			inverse_kinematics(1, pi, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
-			inverse_kinematics(2, pi, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
-			inverse_kinematics(3, 0, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(0, pi / 2, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(1, 0, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(2, 3 * pi / 2, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(3, pi, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
 			if (1 + current_t < 0.001)
 			{
 				current_t = 1;
@@ -215,29 +192,49 @@ float prev = 0;
 
 bool Leg::inverse_kinematics(int leg, float phase_shift, float speed_multiple, float turning)
 {
-	float x;
+	// float x;
 	// float x = (0.5 - current_t) * (40 * 0.01) + current_t * (prev * 0.99);
-	if (fabs(current_t) <= 0.5)
-	{
-		x = (((0.5 - fabs(current_t)) / 0.5) * 40) + (fabs(current_t) / 0.5 * (-40));
-	}
-	else
-	{
+	// if (fabs(current_t) <= 0.5)
+	// {
+	// 	x = (((0.5 - fabs(current_t)) / 0.5) * 40) + (fabs(current_t) / 0.5 * (-40));
+	// }
+	// else
+	// {
 
-		x = ((1 - ((fabs(current_t) - 0.5) / 0.5)) * (-40)) + ((fabs(current_t) - 0.5) / 0.5 * (40));
+	// 	x = ((1 - ((fabs(current_t) - 0.5) / 0.5)) * (-40)) + ((fabs(current_t) - 0.5) / 0.5 * (40));
+	// }
+	float x = 40 * sin(2 * pi * fabs(current_t) + phase_shift);
+
+	if (x < 0)
+	{
+		x = 0;
 	}
-	// float x = ((1 - (current_t)) * (40)) + (current_t * (-40));
 	float y = ((1 - fabs(current_t)) * (0 + y_default)) + (fabs(current_t) * ((turning / 20) + y_default));
 	float z;
-	z = 40 * sin(2 * pi * fabs(current_t) + phase_shift);
-	if (z < 0)
+	z = 40 * sin(2 * pi * fabs(current_t) + phase_shift + pi / 2);
+	if (leg == 0 || leg == 2)
 	{
-		z = z_default;
+		if (z < 0)
+		{
+			z = z_default;
+		}
+		else
+		{
+			z += z_default;
+		}
 	}
-	else
+	else if (leg == 1 || leg == 3)
 	{
-		z += z_default;
+		if (z < 0)
+		{
+			z = fabs(z) + z_default;
+		}
+		else
+		{
+			z = z_default;
+		}
 	}
+
 	// cout << "X " << x << " y " << y << " z " << z << " current time " << current_t << endl;
 	double j_1 = atan(x / y) * (180 / pi);
 
@@ -258,25 +255,38 @@ bool Leg::inverse_kinematics(int leg, float phase_shift, float speed_multiple, f
 	double tibia_duty = (((rotate_180 - rotate_0) / 180) * (j_3)) + rotate_0;
 
 	servo_write(leg, coxa_duty, femur_duty, tibia_duty);
-	
+
 	return (fabs(current_t - 0.5) < 0.1);
 }
 
 void Leg::servo_write(int leg, double coxa, double femur, double tibia)
 {
 	cout << femur << " " << tibia << endl;
-	if (leg == 2 || leg == 1)
+	if (leg == 0)
 	{
-
-		pwm_set_gpio_level(servo_pin[leg][1], 2500 - (femur - 500));
+		pwm_set_gpio_level(servo_pin[leg][0], coxa);
+		pwm_set_gpio_level(servo_pin[leg][1],  2500 - (femur - 500));
 		pwm_set_gpio_level(servo_pin[leg][2], 2500 - (tibia - 500));
 	}
-	else
+	if (leg == 1)
 	{
+		pwm_set_gpio_level(servo_pin[leg][0], 2500 - (coxa - 500));
 		pwm_set_gpio_level(servo_pin[leg][1], femur);
 		pwm_set_gpio_level(servo_pin[leg][2], tibia);
 	}
-	pwm_set_gpio_level(servo_pin[leg][0], coxa);
+	else if (leg == 2)
+	{
+
+		pwm_set_gpio_level(servo_pin[leg][0], 2500 - (coxa - 500));
+		pwm_set_gpio_level(servo_pin[leg][1], femur);
+		pwm_set_gpio_level(servo_pin[leg][2], tibia);
+	}
+	else
+	{
+		pwm_set_gpio_level(servo_pin[leg][0], coxa);
+		pwm_set_gpio_level(servo_pin[leg][1],  2500 - (femur - 500));
+		pwm_set_gpio_level(servo_pin[leg][2], 2500 - (tibia - 500));
+	}
 }
 int Leg::normalize(int value, int type)
 {

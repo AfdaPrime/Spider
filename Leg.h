@@ -12,9 +12,9 @@
 
 struct vector
 {
-	float x;
-	float y;
-	float z;
+	double x;
+	double y;
+	double z;
 };
 
 class Leg
