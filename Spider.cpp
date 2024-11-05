@@ -23,10 +23,11 @@ int main()
 
     stdio_init_all();
     Leg leg;
+
     leg.movement_loop();
     // leg.read();
 
-    // leg.loop();
+    // leg.caliberate_middle();
 
     // while (1)
     // {

@@ -12,7 +12,7 @@ using std::endl;
 const int rotate_0 = 500;
 const int rotate_180 = 2500;
 // define servos' ports
-const int servo_pin[2][3] = {{6, 7, 8}};
+const int servo_pin[4][3] = {{6, 7, 8}, {10, 11, 12}, {21, 20, 19}, {18, 17, 16}};
 volatile int remote_input[7];
 mutex_t buffer_mutex;
 
@@ -61,7 +61,8 @@ uint64_t prev_time = to_us_since_boot(get_absolute_time());
 
 Leg::Leg()
 {
-
+	gpio_init(25);
+	gpio_set_dir(25, GPIO_OUT);
 	// setup receiver - ibus(uart)
 	gpio_set_function(5, UART_FUNCSEL_NUM(uart1, 5));
 	uart_init(uart1, 115200);
@@ -70,7 +71,7 @@ Leg::Leg()
 	int rows = sizeof(servo_pin) / sizeof(servo_pin[0]);
 	int columns = sizeof(servo_pin[0]) / sizeof(servo_pin[0][0]);
 
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 4; i++)
 	{
 		for (int j = 0; j < 3; j++)
 		{
@@ -159,8 +160,14 @@ void Leg::caliberate_middle()
 
 	while (1)
 	{
-		pwm_set_gpio_level(2, 1500);
-		sleep_ms(1000);
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				pwm_set_gpio_level(servo_pin[i][j], 1500);
+				sleep_ms(1000);
+			}
+		}
 	}
 }
 
@@ -169,16 +176,36 @@ void Leg::movement_loop()
 	int *buffer;
 	mutex_init(&buffer_mutex);
 	multicore_launch_core1(read);
+	gpio_put(25, 1);
 	while (1)
 	{
+
 		// buffer = read();
 		mutex_enter_blocking(&buffer_mutex);
 		current_time = to_us_since_boot(get_absolute_time());
+
 		if (current_time - prev_time >= 5000)
 		{ // start 5ms timed loop
 			prev_time = current_time;
 
 			inverse_kinematics(0, 0, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(1, pi, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(2, pi, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			inverse_kinematics(3, 0, normalize(remote_input[2], 1), normalize(remote_input[1], 1));
+			if (1 + current_t < 0.001)
+			{
+				current_t = 1;
+			}
+			else if (1 - current_t < 0.001)
+			{
+				current_t = 0;
+			}
+			else
+			{
+				float speed_multiple = (float)normalize(remote_input[2], 1) / 100 * 1;
+				current_t += 0.005 * speed_multiple;
+				// cout << current_t << " " << speed_multiple << endl;
+			}
 		}
 		mutex_exit(&buffer_mutex);
 	}
@@ -230,28 +257,27 @@ bool Leg::inverse_kinematics(int leg, float phase_shift, float speed_multiple, f
 	double femur_duty = (((rotate_180 - rotate_0) / 180) * (90 - j_2)) + rotate_0;
 	double tibia_duty = (((rotate_180 - rotate_0) / 180) * (j_3)) + rotate_0;
 
-	pwm_set_gpio_level(servo_pin[leg][0], coxa_duty);
-	pwm_set_gpio_level(servo_pin[leg][1], femur_duty);
-	pwm_set_gpio_level(servo_pin[leg][2], tibia_duty);
-
-	cout << current_t << " " << speed_multiple << endl;
-	if (1 + current_t < 0.001)
-	{
-		current_t = 1;
-	}
-	else if (1 - current_t < 0.001)
-	{
-		current_t = 0;
-	}
-	else
-	{
-		speed_multiple = speed_multiple / 100 * 1;
-		current_t += 0.005 * speed_multiple;
-	}
-
+	servo_write(leg, coxa_duty, femur_duty, tibia_duty);
+	
 	return (fabs(current_t - 0.5) < 0.1);
 }
 
+void Leg::servo_write(int leg, double coxa, double femur, double tibia)
+{
+	cout << femur << " " << tibia << endl;
+	if (leg == 2 || leg == 1)
+	{
+
+		pwm_set_gpio_level(servo_pin[leg][1], 2500 - (femur - 500));
+		pwm_set_gpio_level(servo_pin[leg][2], 2500 - (tibia - 500));
+	}
+	else
+	{
+		pwm_set_gpio_level(servo_pin[leg][1], femur);
+		pwm_set_gpio_level(servo_pin[leg][2], tibia);
+	}
+	pwm_set_gpio_level(servo_pin[leg][0], coxa);
+}
 int Leg::normalize(int value, int type)
 {
 	if (type == 2)
